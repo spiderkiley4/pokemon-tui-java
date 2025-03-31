@@ -1,4 +1,4 @@
-package org.example
+package org.example;
 
 public class Point3D {
   double x,y,z;
