@@ -1,6 +1,6 @@
 package org.example;
 
-class Move {
+public class Move {
     private String name;
     private int power;
 

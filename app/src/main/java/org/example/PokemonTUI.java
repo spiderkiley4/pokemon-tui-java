@@ -1,15 +1,11 @@
 package org.example;
 
-import com.googlecode.lanterna.TerminalSize;
 import com.googlecode.lanterna.gui2.*;
-import com.googlecode.lanterna.gui2.dialogs.MessageDialog;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
-import org.example.Pokemon;
-import org.example.Move;
 
 public class PokemonTUI {
   private static List<Pokemon> pokemon = new ArrayList<>();
@@ -21,7 +17,7 @@ public class PokemonTUI {
     Screen screen = terminalFactory.createScreen();
     screen.startScreen();
 
-    MultiWindowTextGUI gui = new MultiWindowTextGUI(new SeparateTextGUIThread.Factory(), screen);
+    MultiWindowTextGUI gui = new MultiWindowTextGUI(screen);
     BasicWindow window = new BasicWindow("Pokémon TUI Battle");
     Panel panel = new Panel();
     panel.setLayoutManager(new LinearLayout(Direction.VERTICAL));
@@ -33,6 +29,7 @@ public class PokemonTUI {
     panel.addComponent(exitButton);
     window.setComponent(panel);
     gui.addWindowAndWait(window);
+    //gui.updateScreen();
   }
 
   private static void startBattle() {
@@ -40,22 +37,40 @@ public class PokemonTUI {
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
     Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
 
-    System.out.println("Battle Start!");
-    System.out.println("Player's Pokémon: " + playerPokemon.getName());
-    System.out.println("Opponent's Pokémon: " + opponentPokemon.getName());
+    BasicWindow battleWindow = new BasicWindow("Battle!");
+    Panel panel = new Panel(new LinearLayout(Direction.VERTICAL));
+
+    panel.addComponent(new Label("Player's Pokémon: " + playerPokemon.getName()));
+    panel.addComponent(new Label(playerPokemon.getSprite()));
+
+    panel.addComponent(new Label("Opponent's Pokémon: " + opponentPokemon.getName()));
+    panel.addComponent(new Label(opponentPokemon.getSprite()));
+
+    Button closeButton = new Button("Close", battleWindow::close);
+    panel.addComponent(closeButton);
+
+    battleWindow.setComponent(panel);
+    MultiWindowTextGUI gui = new MultiWindowTextGUI(new SeparateTextGUIThread.Factory(), new DefaultTerminalFactory().createScreen());
+    gui.addWindowAndWait(battleWindow);
   }
+
 
   private static void loadCSVData() throws IOException {
-    List<String> pokemonData = Files.readAllLines(Paths.get("pokemon.csv"));
-    for (String line : pokemonData.subList(1, pokemonData.size())) {
-      String[] values = line.split(",");
-      pokemon.add(new Pokemon(values[0], Integer.parseInt(values[1]), Integer.parseInt(values[2])));
-    }
-
-    List<String> moveData = Files.readAllLines(Paths.get("moves.csv"));
-    for (String line : moveData.subList(1, moveData.size())) {
-      String[] values = line.split(",");
-      moves.add(new Move(values[0], Integer.parseInt(values[1])));
+    try (InputStream inputStream = PokemonTUI.class.getClassLoader().getResourceAsStream("pokemon.csv")) {
+      if (inputStream == null) {
+        throw new FileNotFoundException("pokemon.csv not found in resources.");
+      }
+      List<String> lines = new BufferedReader(new InputStreamReader(inputStream)).lines().toList();
+      for (String line : lines.subList(1, lines.size())) {
+        String[] values = line.split(",");
+        String name = values[0];
+        int hp = Integer.parseInt(values[1]);
+        int attack = Integer.parseInt(values[2]);
+        String sprite = values[3].replace("\\n", "\n"); // Ensure newlines work properly
+        pokemon.add(new Pokemon(name, hp, attack, sprite));
+      }
     }
   }
+
+
 }
