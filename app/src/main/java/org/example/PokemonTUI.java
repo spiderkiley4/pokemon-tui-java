@@ -22,7 +22,7 @@ public class PokemonTUI {
     Panel panel = new Panel();
     panel.setLayoutManager(new LinearLayout(Direction.VERTICAL));
 
-    Button battleButton = new Button("Start Battle", PokemonTUI::startBattle);
+    Button battleButton = new Button("Start Battle", () -> startBattle(screen));
     Button exitButton = new Button("Exit", () -> System.exit(0));
 
     panel.addComponent(battleButton);
@@ -32,7 +32,7 @@ public class PokemonTUI {
     //gui.updateScreen();
   }
 
-  private static void startBattle() {
+  private static void startBattle(Screen screen) {
     Random rand = new Random();
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
     Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
@@ -50,9 +50,12 @@ public class PokemonTUI {
     panel.addComponent(closeButton);
 
     battleWindow.setComponent(panel);
-    MultiWindowTextGUI gui = new MultiWindowTextGUI(new SeparateTextGUIThread.Factory(), new DefaultTerminalFactory().createScreen());
+
+    // Use the existing screen for GUI
+    MultiWindowTextGUI gui = new MultiWindowTextGUI(screen);
     gui.addWindowAndWait(battleWindow);
   }
+
 
 
   private static void loadCSVData() throws IOException {
@@ -61,16 +64,31 @@ public class PokemonTUI {
         throw new FileNotFoundException("pokemon.csv not found in resources.");
       }
       List<String> lines = new BufferedReader(new InputStreamReader(inputStream)).lines().toList();
-      for (String line : lines.subList(1, lines.size())) {
-        String[] values = line.split(",");
-        String name = values[0];
-        int hp = Integer.parseInt(values[1]);
-        int attack = Integer.parseInt(values[2]);
-        String sprite = values[3].replace("\\n", "\n"); // Ensure newlines work properly
-        pokemon.add(new Pokemon(name, hp, attack, sprite));
+
+      for (String line : lines.subList(1, lines.size())) { // Skip header
+        if (line.trim().isEmpty()) continue; // Skip empty lines
+
+        String[] values = line.split(",", 4); // Split only first 4 columns
+        if (values.length < 4) {
+          System.err.println("Skipping invalid line: " + line);
+          continue;
+        }
+
+        try {
+          String name = values[0].trim();
+          int hp = Integer.parseInt(values[1].trim());
+          int attack = Integer.parseInt(values[2].trim());
+          String sprite = values[3].trim().replace(" ", "\n"); // Reformat spacing
+
+          pokemon.add(new Pokemon(name, hp, attack, sprite));
+        } catch (NumberFormatException e) {
+          System.err.println("Error parsing line (invalid number format): " + line);
+        }
       }
     }
   }
+
+
 
 
 }
