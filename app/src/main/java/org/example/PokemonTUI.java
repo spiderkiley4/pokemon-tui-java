@@ -4,6 +4,7 @@ import com.googlecode.lanterna.gui2.*;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
@@ -22,17 +23,16 @@ public class PokemonTUI {
     Panel panel = new Panel();
     panel.setLayoutManager(new LinearLayout(Direction.VERTICAL));
 
-    Button battleButton = new Button("Start Battle", () -> startBattle(screen));
+    Button battleButton = new Button("Start Battle", () -> startBattle(gui));
     Button exitButton = new Button("Exit", () -> System.exit(0));
 
     panel.addComponent(battleButton);
     panel.addComponent(exitButton);
     window.setComponent(panel);
     gui.addWindowAndWait(window);
-    //gui.updateScreen();
   }
 
-  private static void startBattle(Screen screen) {
+  private static void startBattle(MultiWindowTextGUI gui) {
     Random rand = new Random();
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
     Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
@@ -50,25 +50,20 @@ public class PokemonTUI {
     panel.addComponent(closeButton);
 
     battleWindow.setComponent(panel);
-
-    // Use the existing screen for GUI
-    MultiWindowTextGUI gui = new MultiWindowTextGUI(screen);
     gui.addWindowAndWait(battleWindow);
   }
-
-
 
   private static void loadCSVData() throws IOException {
     try (InputStream inputStream = PokemonTUI.class.getClassLoader().getResourceAsStream("pokemon.csv")) {
       if (inputStream == null) {
         throw new FileNotFoundException("pokemon.csv not found in resources.");
       }
-      List<String> lines = new BufferedReader(new InputStreamReader(inputStream)).lines().toList();
+      List<String> lines = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).lines().toList();
 
       for (String line : lines.subList(1, lines.size())) { // Skip header
         if (line.trim().isEmpty()) continue; // Skip empty lines
 
-        String[] values = line.split(",", 4); // Split only first 4 columns
+        String[] values = line.split(",", 4); // Ensure only 4 splits
         if (values.length < 4) {
           System.err.println("Skipping invalid line: " + line);
           continue;
@@ -78,7 +73,7 @@ public class PokemonTUI {
           String name = values[0].trim();
           int hp = Integer.parseInt(values[1].trim());
           int attack = Integer.parseInt(values[2].trim());
-          String sprite = values[3].trim().replace(" ", "\n"); // Reformat spacing
+          String sprite = values[3].trim().replace("\\n", "\n"); // Preserve manual line breaks
 
           pokemon.add(new Pokemon(name, hp, attack, sprite));
         } catch (NumberFormatException e) {
@@ -87,8 +82,4 @@ public class PokemonTUI {
       }
     }
   }
-
-
-
-
 }
