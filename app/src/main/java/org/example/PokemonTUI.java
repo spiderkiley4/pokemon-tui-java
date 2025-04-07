@@ -7,14 +7,9 @@ import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
-import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
 
 import java.io.*;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 public class PokemonTUI {
@@ -23,12 +18,14 @@ public class PokemonTUI {
 
   public static void main(String[] args) throws IOException {
     loadCSVData();
-    DefaultTerminalFactory terminalFactory = new DefaultTerminalFactory();
-    Screen screen = terminalFactory.createScreen();
+
+    // Set up the terminal to use the real console
+    Terminal terminal = new DefaultTerminalFactory(System.out, System.in, StandardCharsets.UTF_8).createTerminal();
+    Screen screen = new DefaultTerminalFactory().setTerminal(terminal).createScreen();
     screen.startScreen();
     TextGraphics tg = screen.newTextGraphics();
 
-    while (true) {
+    while (running) {
       screen.clear();
       tg.putString(5, 2, "Pokémon TUI Battle");
       tg.putString(5, 4, "[1] Start Battle");
@@ -41,7 +38,7 @@ public class PokemonTUI {
         if (choice == '1') {
           startBattle(screen, tg);
         } else if (choice == '2') {
-          break;
+          running = false;
         }
       }
     }
@@ -49,7 +46,6 @@ public class PokemonTUI {
     screen.stopScreen();
   }
 
-  // Start battle and display Pokémon sprites
   private static void startBattle(Screen screen, TextGraphics tg) throws IOException {
     Random rand = new Random();
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
@@ -79,8 +75,6 @@ public class PokemonTUI {
     screen.readInput();
   }
 
-
-  // Load Pokémon data from CSV (name, hp, attack only)
   private static void loadCSVData() throws IOException {
     try (InputStream inputStream = PokemonTUI.class.getClassLoader().getResourceAsStream("pokemon.csv")) {
       if (inputStream == null) {
@@ -111,16 +105,12 @@ public class PokemonTUI {
     }
   }
 
-
   private static String loadSprite(String name) throws IOException {
-    try (InputStream input = PokemonTUI.class.getResourceAsStream(
-            "/colorscripts/small/regular/" + name.toLowerCase())) {
+    try (InputStream input = PokemonTUI.class.getResourceAsStream("/colorscripts/small/regular/" + name.toLowerCase())) {
       if (input == null) throw new FileNotFoundException("Missing sprite: " + name);
       return new String(input.readAllBytes(), StandardCharsets.UTF_8);
     }
   }
-
-
 
   private static void drawSprite(TextGraphics graphics, String ansiText, int x, int y) {
     String[] lines = ansiText.split("\n");
@@ -133,7 +123,4 @@ public class PokemonTUI {
       }
     }
   }
-
-
-
 }
