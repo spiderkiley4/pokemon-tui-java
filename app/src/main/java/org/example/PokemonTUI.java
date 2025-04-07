@@ -1,11 +1,16 @@
 package org.example;
 
+import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
+import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
+
 import java.io.*;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,87 +23,64 @@ public class PokemonTUI {
 
   public static void main(String[] args) throws IOException {
     loadCSVData();
-
     DefaultTerminalFactory terminalFactory = new DefaultTerminalFactory();
     Screen screen = terminalFactory.createScreen();
     screen.startScreen();
+    TextGraphics tg = screen.newTextGraphics();
 
-    while (running) {
-      drawMainMenu(screen);
-      handleUserInput(screen);
+    while (true) {
+      screen.clear();
+      tg.putString(5, 2, "Pokémon TUI Battle");
+      tg.putString(5, 4, "[1] Start Battle");
+      tg.putString(5, 5, "[2] Exit");
+      screen.refresh();
+
+      KeyStroke key = screen.readInput();
+      if (key.getKeyType() == KeyType.Character) {
+        char choice = key.getCharacter();
+        if (choice == '1') {
+          startBattle(screen, tg);
+        } else if (choice == '2') {
+          break;
+        }
+      }
     }
 
     screen.stopScreen();
   }
 
-  // Draw the main menu
-  private static void drawMainMenu(Screen screen) throws IOException {
-    TextGraphics tg = screen.newTextGraphics();
-    screen.clear();
-
-    tg.putString(5, 2, "POKÉMON TUI BATTLE", com.googlecode.lanterna.SGR.BOLD);
-    tg.putString(5, 4, "[S] Start Battle");
-    tg.putString(5, 5, "[Q] Quit");
-
-    screen.refresh();
-  }
-
-  // Handle user input
-  private static void handleUserInput(Screen screen) throws IOException {
-    KeyStroke keyStroke = screen.pollInput();
-    if (keyStroke == null) return;
-
-    KeyType keyType = keyStroke.getKeyType();
-    Character c = keyStroke.getCharacter();
-
-    if (keyType == KeyType.Character && c != null) {
-      if (c == 's' || c == 'S') {
-        startBattle(screen);
-      } else if (c == 'q' || c == 'Q') {
-        running = false;
-      }
-    }
-  }
-
   // Start battle and display Pokémon sprites
-  private static void startBattle(Screen screen) throws IOException {
+  private static void startBattle(Screen screen, TextGraphics tg) throws IOException {
     Random rand = new Random();
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
     Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
 
     screen.clear();
-    TextGraphics tg = screen.newTextGraphics();
 
-    tg.putString(5, 2, "BATTLE START!", com.googlecode.lanterna.SGR.BOLD);
+    // Load sprite as ANSI string
+    String playerSpriteAnsi = loadSprite(playerPokemon.getName());
+    String opponentSpriteAnsi = loadSprite(opponentPokemon.getName());
+
+    // Draw parsed ANSI sprites
+    drawSprite(tg, playerSpriteAnsi, 5, 5);
+    drawSprite(tg, opponentSpriteAnsi, 40, 5);
+
+    // Display names
+    tg.setForegroundColor(TextColor.ANSI.WHITE);
     tg.putString(5, 4, "Player's Pokémon: " + playerPokemon.getName());
-    drawPokemonSprite(tg, playerPokemon.getSprite(), 5, 6);
-
     tg.putString(40, 4, "Opponent's Pokémon: " + opponentPokemon.getName());
-    drawPokemonSprite(tg, opponentPokemon.getSprite(), 40, 6);
 
-    tg.putString(5, 15, "[B] Back to Main Menu");
+    tg.putString(5, 20, "[Press any key to return to menu]");
 
+    // Refresh before waiting for input!
     screen.refresh();
 
-    while (true) {
-      KeyStroke keyStroke = screen.readInput();
-      if (keyStroke != null) {
-        if (keyStroke.getKeyType() == KeyType.Character && keyStroke.getCharacter() == 'b') {
-          break;
-        }
-      }
-    }
+    // Wait for keypress to return
+    screen.readInput();
   }
 
-  // Draw a Pokémon sprite manually using TextGraphics
-  private static void drawPokemonSprite(TextGraphics tg, String sprite, int x, int y) {
-    String[] lines = sprite.split("\n");
-    for (int i = 0; i < lines.length; i++) {
-      tg.putString(x, y + i, lines[i]);
-    }
-  }
 
-  // Load Pokémon data from CSV
+  // Load Pokémon data from CSV (name, hp, attack only)
   private static void loadCSVData() throws IOException {
     try (InputStream inputStream = PokemonTUI.class.getClassLoader().getResourceAsStream("pokemon.csv")) {
       if (inputStream == null) {
@@ -110,8 +92,8 @@ public class PokemonTUI {
       for (String line : lines.subList(1, lines.size())) { // Skip header
         if (line.trim().isEmpty()) continue;
 
-        String[] values = line.split(",", 4);
-        if (values.length < 4) {
+        String[] values = line.split(",", 3); // Only 3 columns now: name, hp, attack
+        if (values.length < 3) {
           System.err.println("Skipping invalid line: " + line);
           continue;
         }
@@ -120,9 +102,8 @@ public class PokemonTUI {
           String name = values[0].trim();
           int hp = Integer.parseInt(values[1].trim());
           int attack = Integer.parseInt(values[2].trim());
-          String sprite = values[3].trim().replace("\\n", "\n");
 
-          pokemon.add(new Pokemon(name, hp, attack, sprite));
+          pokemon.add(new Pokemon(name, hp, attack));
         } catch (NumberFormatException e) {
           System.err.println("Error parsing line (invalid number format): " + line);
         }
@@ -130,15 +111,29 @@ public class PokemonTUI {
     }
   }
 
-  private static List<String> loadSprite(String name, boolean shiny) throws IOException {
-    String basePath = "colorscripts/" + (shiny ? "shiny" : "regular") + "/small/";
-    Path spritePath = Paths.get(basePath + name);
 
-    if (!Files.exists(spritePath)) {
-      throw new FileNotFoundException("Sprite not found: " + spritePath);
+  private static String loadSprite(String name) throws IOException {
+    try (InputStream input = PokemonTUI.class.getResourceAsStream(
+            "/colorscripts/small/regular/" + name.toLowerCase())) {
+      if (input == null) throw new FileNotFoundException("Missing sprite: " + name);
+      return new String(input.readAllBytes(), StandardCharsets.UTF_8);
     }
-
-    return Files.readAllLines(spritePath, StandardCharsets.UTF_8);
   }
+
+
+
+  private static void drawSprite(TextGraphics graphics, String ansiText, int x, int y) {
+    String[] lines = ansiText.split("\n");
+    for (int row = 0; row < lines.length; row++) {
+      int col = 0;
+      for (ANSIParser.ParsedCharacter pc : ANSIParser.parse(lines[row])) {
+        graphics.setForegroundColor(pc.color);
+        graphics.putString(x + col, y + row, String.valueOf(pc.character));
+        col++;
+      }
+    }
+  }
+
+
 
 }
