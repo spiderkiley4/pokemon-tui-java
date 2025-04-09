@@ -1,75 +1,114 @@
 package org.example;
 
-import com.googlecode.lanterna.TextColor;
-
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
+import com.googlecode.lanterna.TextColor;
 
 public class ANSIParser {
 
-    // Regex to match ANSI escape sequences (e.g., \033[31m)
-    private static final Pattern ANSI_PATTERN = Pattern.compile("\u001B\\[(\\d+)(;(\\d+))*m");
+    public static class ANSIStyle {
+        public String text;
+        public TextColor foreground;
+        public TextColor background;
+        public boolean bold;
+        public boolean underline;
 
-    // Maps ANSI codes to Lanterna colors
-    private static final Map<Integer, TextColor> COLOR_MAP = Map.ofEntries(
-            Map.entry(30, TextColor.ANSI.BLACK),
-            Map.entry(31, TextColor.ANSI.RED),
-            Map.entry(32, TextColor.ANSI.GREEN),
-            Map.entry(33, TextColor.ANSI.YELLOW),
-            Map.entry(34, TextColor.ANSI.BLUE),
-            Map.entry(35, TextColor.ANSI.MAGENTA),
-            Map.entry(36, TextColor.ANSI.CYAN),
-            Map.entry(37, TextColor.ANSI.WHITE),
-            Map.entry(0, TextColor.ANSI.DEFAULT)
-    );
+        public ANSIStyle(String text) {
+            this.text = text;
+        }
 
-    public static List<ParsedCharacter> parse(String input) {
-        List<ParsedCharacter> output = new ArrayList<>();
-        TextColor currentColor = TextColor.ANSI.DEFAULT;
+        @Override
+        public String toString() {
+            return String.format("Text: \"%s\", FG: %s, BG: %s, Bold: %b, Underline: %b",
+                    text, foreground, background, bold, underline);
+        }
+    }
 
-        Matcher matcher = ANSI_PATTERN.matcher(input);
+    private static final Pattern ESC_SEQ = Pattern.compile("\u001B\\[([0-9;]*)m");
+
+    public static List<ANSIStyle> parse(String input) {
+        List<ANSIStyle> result = new ArrayList<>();
+        Matcher matcher = ESC_SEQ.matcher(input);
+
         int lastEnd = 0;
+        ANSIStyle currentStyle = new ANSIStyle("");
+        resetStyle(currentStyle);
 
         while (matcher.find()) {
-            // Text before ANSI sequence
-            String plainText = input.substring(lastEnd, matcher.start());
-            for (char c : plainText.toCharArray()) {
-                output.add(new ParsedCharacter(c, currentColor));
+            // Add preceding plain or styled text
+            if (matcher.start() > lastEnd) {
+                ANSIStyle styledText = copyStyle(currentStyle);
+                styledText.text = input.substring(lastEnd, matcher.start());
+                result.add(styledText);
             }
 
-            // Parse ANSI sequence
-            String[] codes = matcher.group().replaceAll("[\\u001B\\[m]", "").split(";");
-            for (String code : codes) {
-                try {
-                    int codeNum = Integer.parseInt(code);
-                    if (COLOR_MAP.containsKey(codeNum)) {
-                        currentColor = COLOR_MAP.get(codeNum);
-                    } else if (codeNum == 0) {
-                        currentColor = TextColor.ANSI.DEFAULT;
-                    }
-                } catch (NumberFormatException ignored) {}
-            }
+            // Parse the ANSI sequence
+            String[] codes = matcher.group(1).isEmpty() ? new String[]{"0"} : matcher.group(1).split(";");
+            applyCodes(currentStyle, codes);
 
             lastEnd = matcher.end();
         }
 
-        // Remainder after last ANSI
-        String plainText = input.substring(lastEnd);
-        for (char c : plainText.toCharArray()) {
-            output.add(new ParsedCharacter(c, currentColor));
+        // Remaining text
+        if (lastEnd < input.length()) {
+            ANSIStyle styledText = copyStyle(currentStyle);
+            styledText.text = input.substring(lastEnd);
+            result.add(styledText);
         }
 
-        return output;
+        return result;
     }
 
-    public static class ParsedCharacter {
-        public final char character;
-        public final TextColor color;
-
-        public ParsedCharacter(char character, TextColor color) {
-            this.character = character;
-            this.color = color;
+    private static void applyCodes(ANSIStyle style, String[] codes) {
+        for (int i = 0; i < codes.length; i++) {
+            int code = Integer.parseInt(codes[i]);
+            switch (code) {
+                case 0 -> resetStyle(style);
+                case 1 -> style.bold = true;
+                case 4 -> style.underline = true;
+                case 22 -> style.bold = false;
+                case 24 -> style.underline = false;
+                case 38, 48 -> {
+                    // Handle RGB colors
+                    if (i + 4 < codes.length && Integer.parseInt(codes[i + 1]) == 2) {
+                        int r = Integer.parseInt(codes[i + 2]);
+                        int g = Integer.parseInt(codes[i + 3]);
+                        int b = Integer.parseInt(codes[i + 4]);
+                        TextColor color = new TextColor.RGB(r, g, b);
+                        if (code == 38) style.foreground = color;
+                        else style.background = color;
+                        i += 4; // Skip the color parameters
+                    }
+                }
+                case 39 -> style.foreground = TextColor.ANSI.DEFAULT;
+                case 49 -> style.background = TextColor.ANSI.DEFAULT;
+                default -> {
+                    if (30 <= code && code <= 37)
+                        style.foreground = TextColor.ANSI.values()[code - 30];
+                    else if (40 <= code && code <= 47)
+                        style.background = TextColor.ANSI.values()[code - 40];
+                    else if (90 <= code && code <= 97)
+                        style.foreground = TextColor.ANSI.values()[(code - 90) + 8];
+                    else if (100 <= code && code <= 107)
+                        style.background = TextColor.ANSI.values()[(code - 100) + 8];
+                }
+            }
         }
+    }
+
+    private static void resetStyle(ANSIStyle style) {
+        style.foreground = TextColor.ANSI.DEFAULT;
+        style.background = TextColor.ANSI.DEFAULT;
+        style.bold = false;
+        style.underline = false;
+    }
+
+    private static ANSIStyle copyStyle(ANSIStyle style) {
+        ANSIStyle newStyle = new ANSIStyle("");
+        newStyle.foreground = style.foreground;
+        newStyle.background = style.background;
+        newStyle.bold = style.bold;
+        newStyle.underline = style.underline;
+        return newStyle;
     }
 }

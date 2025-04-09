@@ -3,3 +3,12 @@
 
 # Ignore Gradle build output directory
 build
+/.idea/.gitignore
+/.idea/compiler.xml
+/.idea/discord.xml
+/.idea/gradle.xml
+/.idea/misc.xml
+/.idea/vcs.xml
+/app/bin
+/app/out
+/out

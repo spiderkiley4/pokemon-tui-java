@@ -50,3 +50,13 @@ tasks.jar {
         )
     }
 }
+
+tasks.jar.configure {
+    manifest {
+        attributes(mapOf("Main-Class" to "org.example.PokemonTUI"))
+    }
+    configurations["compileClasspath"].forEach { file: File ->
+        from(zipTree(file.absoluteFile))
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
