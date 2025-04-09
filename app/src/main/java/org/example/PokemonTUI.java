@@ -5,6 +5,8 @@ import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
+import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
+import com.googlecode.lanterna.graphics.TextGraphics;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -18,15 +20,15 @@ public class PokemonTUI {
     loadCSVData();
 
     // Set up the terminal in private mode
-    Terminal terminal = new DefaultTerminalFactory().createTerminal();
+    UnixTerminal terminal = new UnixTerminal();
     terminal.enterPrivateMode();
 
     while (running) {
       terminal.clearScreen();
       terminal.setCursorPosition(0, 0);
-      terminal.writer().println("Pokémon TUI Battle");
-      terminal.writer().println("[1] Start Battle");
-      terminal.writer().println("[2] Exit");
+      writeString(terminal, 0, 0, "Pokémon TUI Battle");
+      writeString(terminal, 0, 1, "[1] Start Battle");
+      writeString(terminal, 0, 2, "[2] Exit");
       terminal.flush();
 
       KeyStroke key = terminal.readInput();
@@ -57,13 +59,12 @@ public class PokemonTUI {
     String opponentSpriteAnsi = loadSprite(opponentPokemon.getName());
 
     // Draw parsed ANSI sprites
-    terminal.writer().println("Player's Pokémon: " + playerPokemon.getName());
-    terminal.writer().println(playerSpriteAnsi);
-    terminal.writer().println("Opponent's Pokémon: " + opponentPokemon.getName());
-    terminal.writer().println(opponentSpriteAnsi);
+    writeString(terminal, 0, 0, "Player's Pokémon: " + playerPokemon.getName());
+    writeString(terminal, 0, 1, playerSpriteAnsi);
+    writeString(terminal, 0, 2, "Opponent's Pokémon: " + opponentPokemon.getName());
+    writeString(terminal, 0, 3, opponentSpriteAnsi);
 
-    terminal.writer().println("[Press any key to return to menu]");
-    terminal.flush();
+    writeString(terminal, 0, 4, "[Press any key to return to menu]");
 
     // Wait for keypress to return
     terminal.readInput();
@@ -116,5 +117,13 @@ public class PokemonTUI {
         col++;
       }
     }
+  }
+
+  private static void writeString(Terminal terminal, int x, int y, String text) throws IOException {
+    terminal.setCursorPosition(x, y);
+    for (char c : text.toCharArray()) {
+      terminal.putCharacter(c);
+    }
+    terminal.flush();
   }
 }
