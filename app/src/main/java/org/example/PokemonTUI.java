@@ -1,10 +1,8 @@
 package org.example;
 
 import com.googlecode.lanterna.TextColor;
-import com.googlecode.lanterna.graphics.TextGraphics;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
-import com.googlecode.lanterna.screen.Screen;
 import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
 
@@ -19,60 +17,56 @@ public class PokemonTUI {
   public static void main(String[] args) throws IOException {
     loadCSVData();
 
-    // Set up the terminal to use the real console
-    Terminal terminal = new DefaultTerminalFactory(System.out, System.in, StandardCharsets.UTF_8).createTerminal();
-    Screen screen = new DefaultTerminalFactory().setTerminal(terminal).createScreen();
-    screen.startScreen();
-    TextGraphics tg = screen.newTextGraphics();
+    // Set up the terminal in private mode
+    Terminal terminal = new DefaultTerminalFactory().createTerminal();
+    terminal.enterPrivateMode();
 
     while (running) {
-      screen.clear();
-      tg.putString(5, 2, "Pokémon TUI Battle");
-      tg.putString(5, 4, "[1] Start Battle");
-      tg.putString(5, 5, "[2] Exit");
-      screen.refresh();
+      terminal.clearScreen();
+      terminal.setCursorPosition(0, 0);
+      terminal.writer().println("Pokémon TUI Battle");
+      terminal.writer().println("[1] Start Battle");
+      terminal.writer().println("[2] Exit");
+      terminal.flush();
 
-      KeyStroke key = screen.readInput();
+      KeyStroke key = terminal.readInput();
       if (key.getKeyType() == KeyType.Character) {
         char choice = key.getCharacter();
         if (choice == '1') {
-          startBattle(screen, tg);
+          startBattle(terminal);
         } else if (choice == '2') {
           running = false;
         }
       }
     }
 
-    screen.stopScreen();
+    terminal.exitPrivateMode();
+    terminal.close();
   }
 
-  private static void startBattle(Screen screen, TextGraphics tg) throws IOException {
+  private static void startBattle(Terminal terminal) throws IOException {
     Random rand = new Random();
     Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
     Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
 
-    screen.clear();
+    terminal.clearScreen();
+    terminal.setCursorPosition(0, 0);
 
     // Load sprite as ANSI string
     String playerSpriteAnsi = loadSprite(playerPokemon.getName());
     String opponentSpriteAnsi = loadSprite(opponentPokemon.getName());
 
     // Draw parsed ANSI sprites
-    drawSprite(tg, playerSpriteAnsi, 5, 5);
-    drawSprite(tg, opponentSpriteAnsi, 40, 5);
+    terminal.writer().println("Player's Pokémon: " + playerPokemon.getName());
+    terminal.writer().println(playerSpriteAnsi);
+    terminal.writer().println("Opponent's Pokémon: " + opponentPokemon.getName());
+    terminal.writer().println(opponentSpriteAnsi);
 
-    // Display names
-    tg.setForegroundColor(TextColor.ANSI.WHITE);
-    tg.putString(5, 4, "Player's Pokémon: " + playerPokemon.getName());
-    tg.putString(40, 4, "Opponent's Pokémon: " + opponentPokemon.getName());
-
-    tg.putString(5, 20, "[Press any key to return to menu]");
-
-    // Refresh before waiting for input!
-    screen.refresh();
+    terminal.writer().println("[Press any key to return to menu]");
+    terminal.flush();
 
     // Wait for keypress to return
-    screen.readInput();
+    terminal.readInput();
   }
 
   private static void loadCSVData() throws IOException {
