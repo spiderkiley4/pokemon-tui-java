@@ -5,15 +5,21 @@ import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
 import com.googlecode.lanterna.terminal.Terminal;
 import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
+import com.googlecode.lanterna.terminal.TerminalResizeListener;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class PokemonTUI {
     private static List<Pokemon> pokemon = new ArrayList<>();
     private static List<Move> moves = new ArrayList<>();
     private static boolean running = true;
+    private static String currentScreen = "mainMenu";
+    private static Pokemon currentPlayerPokemon;
+    private static Pokemon currentOpponentPokemon;
+    private static final ReentrantLock inputLock = new ReentrantLock();
 
     public static void main(String[] args) throws IOException, InterruptedException {
         loadMoves();
@@ -23,28 +29,84 @@ public class PokemonTUI {
         UnixTerminal terminal = new UnixTerminal();
         terminal.enterPrivateMode();
 
-        while (running) {
-            terminal.clearScreen();
-            terminal.setCursorPosition(0, 0);
+        // Add a resize listener to handle terminal resizing
+        terminal.addResizeListener((terminal1, newSize) -> {
+            try {
+                terminal1.clearScreen();
+                redrawCurrentScreen(terminal1);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
 
-            writeString(terminal, 0, 0, "Pokémon TUI Battle");
-            writeString(terminal, 0, 1, "[1] Start Battle");
-            writeString(terminal, 0, 2, "[2] Exit");
-            terminal.flush();
+        while (running) {
+            drawMainMenu(terminal);
 
             KeyStroke key = terminal.readInput();
             if (key.getKeyType() == KeyType.Character) {
                 char choice = key.getCharacter();
-                if (choice == '1') {
-                    startBattle(terminal);
-                } else if (choice == '2') {
-                    running = false;
+                if (inputLock.tryLock()) {
+                    try {
+                        if (choice == '1') {
+                            startBattle(terminal);
+                        } else if (choice == '2') {
+                            running = false;
+                        }
+                    } finally {
+                        inputLock.unlock();
+                    }
                 }
             }
         }
 
         terminal.exitPrivateMode();
         terminal.close();
+    }
+
+    private static void redrawCurrentScreen(Terminal terminal) throws IOException {
+        if (currentScreen.equals("mainMenu")) {
+            drawMainMenu(terminal);
+        } else if (currentScreen.equals("battle")) {
+            drawBattleScreen(terminal, currentPlayerPokemon, currentOpponentPokemon);
+        }
+    }
+
+    private static void drawMainMenu(Terminal terminal) throws IOException {
+        currentScreen = "mainMenu";
+        terminal.clearScreen();
+        terminal.setCursorPosition(0, 0);
+
+        writeString(terminal, 0, 0, "Pokémon TUI Battle");
+        writeString(terminal, 0, 1, "[1] Start Battle");
+        writeString(terminal, 0, 2, "[2] Exit");
+        terminal.flush();
+    }
+
+    private static void drawBattleScreen(Terminal terminal, Pokemon playerPokemon, Pokemon opponentPokemon) throws IOException {
+        currentScreen = "battle";
+        currentPlayerPokemon = playerPokemon;
+        currentOpponentPokemon = opponentPokemon;
+
+        terminal.clearScreen();
+        terminal.setCursorPosition(0, 0);
+
+        // Draw player Pokémon details
+        writeString(terminal, 0, 0, String.format("Player's %s (HP: %d/%d)", 
+            playerPokemon.getName(), playerPokemon.getHp(), playerPokemon.getMaxHp()));
+        writeString(terminal, 0, 1, String.format("Type: %s%s", 
+            playerPokemon.getType1(), 
+            playerPokemon.getType2() != null ? "/" + playerPokemon.getType2() : ""));
+        writeANSIString(terminal, 0, 2, loadSprite(playerPokemon.getName()));
+
+        // Draw opponent Pokémon details
+        writeString(terminal, 0, 15, String.format("Opponent's %s (HP: %d/%d)", 
+            opponentPokemon.getName(), opponentPokemon.getHp(), opponentPokemon.getMaxHp()));
+        writeString(terminal, 0, 16, String.format("Type: %s%s", 
+            opponentPokemon.getType1(), 
+            opponentPokemon.getType2() != null ? "/" + opponentPokemon.getType2() : ""));
+        writeANSIString(terminal, 0, 17, loadSprite(opponentPokemon.getName()));
+
+        terminal.flush();
     }
 
     private static void loadMoves() throws IOException {
@@ -79,91 +141,80 @@ public class PokemonTUI {
     }
 
     private static void startBattle(Terminal terminal) throws IOException, InterruptedException {
-        Random rand = new Random();
-        Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
-        Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
+        inputLock.lock();
+        try {
+            Random rand = new Random();
+            Pokemon playerPokemon = pokemon.get(rand.nextInt(pokemon.size()));
+            Pokemon opponentPokemon = pokemon.get(rand.nextInt(pokemon.size()));
 
-        // Assign random moves to both Pokemon
-        assignRandomMoves(playerPokemon);
-        assignRandomMoves(opponentPokemon);
+            // Assign random moves to both Pokemon
+            assignRandomMoves(playerPokemon);
+            assignRandomMoves(opponentPokemon);
 
-        boolean battleRunning = true;
-        while (battleRunning && !playerPokemon.isFainted() && !opponentPokemon.isFainted()) {
-            terminal.clearScreen();
-            terminal.setCursorPosition(0, 0);
+            boolean battleRunning = true;
+            while (battleRunning && !playerPokemon.isFainted() && !opponentPokemon.isFainted()) {
+                drawBattleScreen(terminal, playerPokemon, opponentPokemon);
 
-            // Draw sprites and status
-            writeString(terminal, 0, 0, String.format("Player's %s (HP: %d/%d)", 
-                playerPokemon.getName(), playerPokemon.getHp(), playerPokemon.getMaxHp()));
-            writeString(terminal, 0, 1, String.format("Type: %s%s", 
-                playerPokemon.getType1(), 
-                playerPokemon.getType2() != null ? "/" + playerPokemon.getType2() : ""));
-            writeANSIString(terminal, 0, 2, loadSprite(playerPokemon.getName()));
-
-            writeString(terminal, 0, 15, String.format("Opponent's %s (HP: %d/%d)", 
-                opponentPokemon.getName(), opponentPokemon.getHp(), opponentPokemon.getMaxHp()));
-            writeString(terminal, 0, 16, String.format("Type: %s%s", 
-                opponentPokemon.getType1(), 
-                opponentPokemon.getType2() != null ? "/" + opponentPokemon.getType2() : ""));
-            writeANSIString(terminal, 0, 17, loadSprite(opponentPokemon.getName()));
-
-            // Show moves with more details
-            writeString(terminal, 0, 30, "Choose your move:");
-            List<Move> playerMoves = playerPokemon.getMoves();
-            for (int i = 0; i < playerMoves.size(); i++) {
-                Move move = playerMoves.get(i);
-                writeString(terminal, 0, 31 + i, String.format("[%d] %s (%s | Power: %.0f | Accuracy: %.0f%%)", 
-                    i + 1, move.getName(), move.getType(), move.getPower(), move.getAccuracy()));
-            }
-            writeString(terminal, 0, 35, "[x] Retreat");
-            terminal.flush();
-
-            // Handle player input
-            KeyStroke key = terminal.readInput();
-            if (key.getKeyType() == KeyType.Character) {
-                char choice = key.getCharacter();
-                if (choice == 'x') {
-                    battleRunning = false;
-                    continue;
+                // Show moves with more details
+                writeString(terminal, 0, 30, "Choose your move:");
+                List<Move> playerMoves = playerPokemon.getMoves();
+                for (int i = 0; i < playerMoves.size(); i++) {
+                    Move move = playerMoves.get(i);
+                    writeString(terminal, 0, 31 + i, String.format("[%d] %s (%s | Power: %.0f | Accuracy: %.0f%%)", 
+                        i + 1, move.getName(), move.getType(), move.getPower(), move.getAccuracy()));
                 }
-                
-                int moveIndex = Character.getNumericValue(choice) - 1;
-                if (moveIndex >= 0 && moveIndex < playerMoves.size()) {
-                    // Determine turn order based on speed and move priority
-                    boolean playerFirst = determineOrder(playerPokemon, opponentPokemon, 
-                                                       playerMoves.get(moveIndex), 
-                                                       opponentPokemon.getMoves().get(rand.nextInt(opponentPokemon.getMoves().size())));
-                    
-                    if (playerFirst) {
-                        executeMove(terminal, playerPokemon, opponentPokemon, playerMoves.get(moveIndex), true);
-                        if (!opponentPokemon.isFainted()) {
+                writeString(terminal, 0, 35, "[x] Retreat");
+                terminal.flush();
+
+                // Handle player input
+                KeyStroke key = terminal.readInput();
+                if (key.getKeyType() == KeyType.Character) {
+                    char choice = key.getCharacter();
+                    if (choice == 'x') {
+                        battleRunning = false;
+                        continue;
+                    }
+
+                    int moveIndex = Character.getNumericValue(choice) - 1;
+                    if (moveIndex >= 0 && moveIndex < playerMoves.size()) {
+                        // Determine turn order based on speed and move priority
+                        boolean playerFirst = determineOrder(playerPokemon, opponentPokemon, 
+                                                           playerMoves.get(moveIndex), 
+                                                           opponentPokemon.getMoves().get(rand.nextInt(opponentPokemon.getMoves().size())));
+
+                        if (playerFirst) {
+                            executeMove(terminal, playerPokemon, opponentPokemon, playerMoves.get(moveIndex), true);
+                            if (!opponentPokemon.isFainted()) {
+                                executeMove(terminal, opponentPokemon, playerPokemon, 
+                                          opponentPokemon.getMoves().get(rand.nextInt(opponentPokemon.getMoves().size())), false);
+                            }
+                        } else {
                             executeMove(terminal, opponentPokemon, playerPokemon, 
                                       opponentPokemon.getMoves().get(rand.nextInt(opponentPokemon.getMoves().size())), false);
-                        }
-                    } else {
-                        executeMove(terminal, opponentPokemon, playerPokemon, 
-                                  opponentPokemon.getMoves().get(rand.nextInt(opponentPokemon.getMoves().size())), false);
-                        if (!playerPokemon.isFainted()) {
-                            executeMove(terminal, playerPokemon, opponentPokemon, playerMoves.get(moveIndex), true);
+                            if (!playerPokemon.isFainted()) {
+                                executeMove(terminal, playerPokemon, opponentPokemon, playerMoves.get(moveIndex), true);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Show battle result
-        terminal.clearScreen();
-        terminal.setCursorPosition(0, 0);
-        if (playerPokemon.isFainted()) {
-            writeString(terminal, 0, 0, "You lost the battle!");
-        } else if (opponentPokemon.isFainted()) {
-            writeString(terminal, 0, 0, "You won the battle!");
-        } else {
-            writeString(terminal, 0, 0, "Battle ended in retreat!");
+            // Show battle result
+            terminal.clearScreen();
+            terminal.setCursorPosition(0, 0);
+            if (playerPokemon.isFainted()) {
+                writeString(terminal, 0, 0, "You lost the battle!");
+            } else if (opponentPokemon.isFainted()) {
+                writeString(terminal, 0, 0, "You won the battle!");
+            } else {
+                writeString(terminal, 0, 0, "Battle ended in retreat!");
+            }
+            writeString(terminal, 0, 2, "[Press any key to return to menu]");
+            terminal.flush();
+            terminal.readInput();
+        } finally {
+            inputLock.unlock();
         }
-        writeString(terminal, 0, 2, "[Press any key to return to menu]");
-        terminal.flush();
-        terminal.readInput();
     }
 
     private static void assignRandomMoves(Pokemon pokemon) {

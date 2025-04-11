@@ -2,36 +2,45 @@ package org.example;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.logging.Logger;
 
 class AppTest {
+    private static final Logger logger = Logger.getLogger(AppTest.class.getName());
+
     @Test
     void testPokemonCreation() {
+        logger.info("Starting testPokemonCreation");
         Pokemon pokemon = new Pokemon("Charizard", 78, 84, 78, 109, 85, 100, "Fire", "Flying");
         
-        assertEquals("Charizard", pokemon.getName());
-        assertEquals(78, pokemon.getHp());
-        assertEquals(78, pokemon.getMaxHp());
-        assertEquals(84, pokemon.getAttack());
-        assertEquals(78, pokemon.getDefense());
-        assertEquals(109, pokemon.getSpecialAttack());
-        assertEquals(85, pokemon.getSpecialDefense());
-        assertEquals(100, pokemon.getSpeed());
-        assertEquals("Fire", pokemon.getType1());
-        assertEquals("Flying", pokemon.getType2());
+        logger.info("Asserting Pokemon properties");
+        assertEquals("Charizard", pokemon.getName(), "Pokemon name mismatch");
+        assertEquals(78, pokemon.getHp(), "Pokemon HP mismatch");
+        assertEquals(78, pokemon.getMaxHp(), "Pokemon Max HP mismatch");
+        assertEquals(84, pokemon.getAttack(), "Pokemon Attack mismatch");
+        assertEquals(78, pokemon.getDefense(), "Pokemon Defense mismatch");
+        assertEquals(109, pokemon.getSpecialAttack(), "Pokemon Special Attack mismatch");
+        assertEquals(85, pokemon.getSpecialDefense(), "Pokemon Special Defense mismatch");
+        assertEquals(100, pokemon.getSpeed(), "Pokemon Speed mismatch");
+        assertEquals("Fire", pokemon.getType1(), "Pokemon Type1 mismatch");
+        assertEquals("Flying", pokemon.getType2(), "Pokemon Type2 mismatch");
+        logger.info("testPokemonCreation completed successfully");
     }
 
     @Test
     void testMoveCreation() {
+        logger.info("Starting testMoveCreation");
         Move move = new Move("Thunderbolt", 90, 100.0, 15, "Electric", "Special", 0, "Has a $effect_chance% chance to paralyze the target.");
         
-        assertEquals("Thunderbolt", move.getName());
-        assertEquals(90, move.getPower());
-        assertEquals(100.0, move.getAccuracy());
-        assertEquals(15, move.getPp());
-        assertEquals("Electric", move.getType());
-        assertEquals("Special", move.getDamageClass());
-        assertTrue(move.isSpecial());
-        assertFalse(move.isPhysical());
+        logger.info("Asserting Move properties");
+        assertEquals("Thunderbolt", move.getName(), "Move name mismatch");
+        assertEquals(90, move.getPower(), "Move power mismatch");
+        assertEquals(100.0, move.getAccuracy(), "Move accuracy mismatch");
+        assertEquals(15, move.getPp(), "Move PP mismatch");
+        assertEquals("Electric", move.getType(), "Move type mismatch");
+        assertEquals("Special", move.getDamageClass(), "Move damage class mismatch");
+        assertTrue(move.isSpecial(), "Move should be special");
+        assertFalse(move.isPhysical(), "Move should not be physical");
+        logger.info("testMoveCreation completed successfully");
     }
 
     @Test
