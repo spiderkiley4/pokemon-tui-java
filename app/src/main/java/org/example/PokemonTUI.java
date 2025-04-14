@@ -3,6 +3,7 @@ package org.example;
 import com.googlecode.lanterna.TextColor;
 import com.googlecode.lanterna.input.KeyStroke;
 import com.googlecode.lanterna.input.KeyType;
+import com.googlecode.lanterna.terminal.DefaultTerminalFactory;
 import com.googlecode.lanterna.terminal.Terminal;
 import com.googlecode.lanterna.terminal.ansi.UnixTerminal;
 import com.googlecode.lanterna.terminal.TerminalResizeListener;
@@ -26,7 +27,14 @@ public class PokemonTUI {
         loadCSVData();
 
         // Set up the terminal in private mode
-        UnixTerminal terminal = new UnixTerminal();
+        //UnixTerminal terminal = new UnixTerminal();
+        DefaultTerminalFactory defaultTerminalFactory = new DefaultTerminalFactory();
+        Terminal terminal = null;
+        try {
+            terminal = defaultTerminalFactory.createTerminal();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
         terminal.enterPrivateMode();
 
         // Add a resize listener to handle terminal resizing
